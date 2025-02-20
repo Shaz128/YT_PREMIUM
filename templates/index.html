@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MP3 Downloader</title>
+    <script>
+        function startDownload() {
+            const url = document.getElementById("youtubeUrl").value;
+            if (!url) {
+                alert("Please enter a YouTube URL!");
+                alert(url)
+                return;
+            }
+
+            document.getElementById("status").innerText = "Downloading...";
+
+            fetch("/download", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ url: url })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    document.getElementById("status").innerText = "Download Complete: " + data.file;
+                    loadDownloads(); // Refresh the download list
+                } else {
+                    alert("Error: " + data.error);
+                }
+            });
+        }
+
+        function loadDownloads() {
+            fetch("/list_downloads")
+            .then(response => response.json())
+            .then(data => {
+                const list = document.getElementById("download-list");
+                list.innerHTML = "";
+
+                if (data.files.length > 0) {
+                    document.getElementById("download-table").style.display = "table";
+                }
+
+                data.files.forEach((file, index) => {
+                    let row = list.insertRow();
+                    row.insertCell(0).innerText = index + 1;
+                    row.insertCell(1).innerText = file;
+                });
+            });
+        }
+    </script>
+
+    <style>
+        body { font-family: Arial, sans-serif; }
+        #download-table { display: none; margin-top: 20px; border-collapse: collapse; width: 100%; }
+        #download-table th, #download-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+    </style>
+</head>
+<body onload="loadDownloads()">
+    <h2>YouTube to MP3 Downloader</h2>
+    <input type="text" id="youtubeUrl" placeholder="Enter YouTube URL">
+    <button onclick="startDownload()">Download MP3</button>
+
+
+    <p id="status"></p>
+
+    <h3>Downloaded Files</h3>
+    <table id="download-table">
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>File Name</th>
+            </tr>
+        </thead>
+        <tbody id="download-list"></tbody>
+    </table>
+</body>
+</html>
