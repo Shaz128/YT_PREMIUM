@@ -1,12 +1,28 @@
 from flask import Flask, render_template, request, jsonify
 import yt_dlp
 import os
+import requests
 
 app = Flask(__name__)
 
-# Download folder setup
+# 🔹 Your YouTube Data API Key
+YOUTUBE_API_KEY = "AIzaSyD1eTG59YLjaq9VYD8Vl2so86eh4-eLKIU"
+
+# 🔹 Folder to Save Downloads
 DOWNLOAD_FOLDER = "downloads"
 os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
+
+def get_video_info(video_url):
+    """Extracts video ID and fetches title using YouTube Data API."""
+    video_id = video_url.split("v=")[-1].split("&")[0]
+    api_url = f"https://www.googleapis.com/youtube/v3/videos?id={video_id}&key={YOUTUBE_API_KEY}&part=snippet"
+    response = requests.get(api_url)
+    if response.status_code == 200:
+        data = response.json()
+        if "items" in data and len(data["items"]) > 0:
+            title = data["items"][0]["snippet"]["title"]
+            return video_id, title
+    return None, None
 
 @app.route("/")
 def home():
@@ -22,27 +38,29 @@ def download_mp3():
     if not youtube_url:
         return jsonify({"error": "No URL provided"}), 400
 
+    video_id, title = get_video_info(youtube_url)
+    if not title:
+        return jsonify({"error": "Could not retrieve video details. Check API Key or video availability."}), 400
+
     try:
         ydl_opts = {
             "format": "bestaudio/best",
-            "outtmpl": os.path.join(DOWNLOAD_FOLDER, "%(title)s.%(ext)s"),
+            "outtmpl": os.path.join(DOWNLOAD_FOLDER, f"{title}.mp3"),
             "postprocessors": [
                 {
                     "key": "FFmpegExtractAudio",
                     "preferredcodec": "mp3",
-                    "preferredquality": "64",
+                    "preferredquality": "192",
                 }
             ],
             "noplaylist": True,
-            "cookiefile": "cookies.txt",
             "quiet": False,
         }
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(youtube_url, download=True)
-            file_name = f"{info['title']}.mp3"
+            ydl.download([youtube_url])
 
-        return jsonify({"success": True, "file": file_name})
+        return jsonify({"success": True, "file": f"{title}.mp3"})
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
