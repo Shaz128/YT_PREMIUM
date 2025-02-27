@@ -1,162 +1,108 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>YouTube MP3 Downloader</title>
-  <!-- Bootstrap CSS -->
-  <link
-    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
-    rel="stylesheet"
-  />
-  <style>
-    body {
-      padding: 2rem;
-      background-color: #f8f9fa;
-    }
-    .video-item {
-      margin-bottom: 1.5rem;
-      padding: 1rem;
-      border: 1px solid #dee2e6;
-      border-radius: 0.5rem;
-      background: #fff;
-    }
-    .preview {
-      margin-top: 0.5rem;
-    }
-  </style>
-  <script>
-    // Function to extract YouTube video ID from a URL in JS (similar to backend)
-    function extractVideoId(url) {
-      const regex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
-      const match = url.match(regex);
-      return match ? match[1] : null;
-    }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube MP3 Downloader</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <script>
+        let selectedVideos = new Set();
 
-    async function fetchVideos() {
-      let videoInput = document.getElementById("video_id").value;
-      if (!videoInput) {
-        alert("Please enter a YouTube Video ID or URL.");
-        return;
-      }
-
-      // Fetch new videos
-      let response = await fetch("/get_videos", {
-        method: "POST",
-        body: new URLSearchParams({ video_id: videoInput }),
-        headers: { "Content-Type": "application/x-www-form-urlencoded" }
-      });
-
-      let videos = await response.json();
-      // Limit to 5 items (if not already limited by backend)
-      videos = videos.slice(0, 5);
-
-      let list = document.getElementById("video_list");
-
-      // Preserve already checked (selected) items
-      let preserved = [];
-      let items = Array.from(list.getElementsByClassName("video-item"));
-      items.forEach(item => {
-        let checkbox = item.querySelector("input[type=checkbox]");
-        if (checkbox && checkbox.checked) {
-          preserved.push(item);
-        } else {
-          item.remove();
-        }
-      });
-
-      // Get existing URLs from preserved items
-      let existingUrls = preserved.map(item =>
-        item.querySelector("input[type=checkbox]").value
-      );
-
-      // Append new videos if they are not already in the list
-      videos.forEach(video => {
-        if (!existingUrls.includes(video.url)) {
-          let li = document.createElement("div");
-          li.className = "video-item";
-
-          // Checkbox
-          let checkbox = document.createElement("input");
-          checkbox.type = "checkbox";
-          checkbox.value = video.url;
-          checkbox.className = "form-check-input me-2";
-          li.appendChild(checkbox);
-
-          // Video link
-          let link = document.createElement("a");
-          link.href = video.url;
-          link.target = "_blank";
-          link.textContent = video.title;
-          link.className = "fw-bold";
-          li.appendChild(link);
-
-          // Preview Button
-          let previewBtn = document.createElement("button");
-          previewBtn.textContent = "Preview";
-          previewBtn.className = "btn btn-sm btn-primary ms-3";
-          previewBtn.onclick = function() {
-            let previewDiv = li.querySelector(".preview");
-            if (previewDiv.style.display === "none") {
-              previewDiv.style.display = "block";
-            } else {
-              previewDiv.style.display = "none";
+        async function fetchVideos() {
+            let videoId = document.getElementById("video_id").value;
+            if (!videoId) {
+                alert("Please enter a YouTube Video URL.");
+                return;
             }
-          };
-          li.appendChild(previewBtn);
-
-          // Hidden preview div with embedded YouTube player
-          let previewDiv = document.createElement("div");
-          previewDiv.className = "preview mt-2";
-          previewDiv.style.display = "none";
-          let vidId = extractVideoId(video.url);
-          if (vidId) {
-            previewDiv.innerHTML = `<iframe width="300" height="169" src="https://www.youtube.com/embed/${vidId}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>`;
-          }
-          li.appendChild(previewDiv);
-
-          list.appendChild(li);
+            let response = await fetch("/get_videos", {
+                method: "POST",
+                body: new URLSearchParams({ video_id: videoId }),
+                headers: { "Content-Type": "application/x-www-form-urlencoded" }
+            });
+            let videos = await response.json();
+            let list = document.getElementById("video_list");
+            list.innerHTML = "";
+            if (!videos.length) {
+                list.innerHTML = "<li class='list-group-item'>No related videos found.</li>";
+                return;
+            }
+            videos.forEach(video => {
+                let row = document.createElement("div");
+                row.classList.add("row", "align-items-center", "mb-2");
+                let colCheckbox = document.createElement("div");
+                colCheckbox.classList.add("col-1");
+                let checkbox = document.createElement("input");
+                checkbox.type = "checkbox";
+                checkbox.value = video.url;
+                checkbox.classList.add("form-check-input");
+                if (selectedVideos.has(video.url)) {
+                    checkbox.checked = true;
+                }
+                checkbox.addEventListener("change", function () {
+                    if (this.checked) {
+                        selectedVideos.add(this.value);
+                    } else {
+                        selectedVideos.delete(this.value);
+                    }
+                });
+                colCheckbox.appendChild(checkbox);
+                let colTitle = document.createElement("div");
+                colTitle.classList.add("col-6");
+                let link = document.createElement("a");
+                link.href = video.url;
+                link.target = "_blank";
+                link.textContent = video.title;
+                colTitle.appendChild(link);
+                let colVideo = document.createElement("div");
+                colVideo.classList.add("col-5");
+                let iframe = document.createElement("iframe");
+                iframe.width = "100%";
+                iframe.height = "200";
+                iframe.src = `https://www.youtube.com/embed/${new URL(video.url).searchParams.get("v")}`;
+                iframe.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture";
+                iframe.allowFullscreen = true;
+                iframe.onerror = function () {
+                    console.error("Error loading video:", video.url);
+                    iframe.src = "";
+                    iframe.innerHTML = "Video unavailable";
+                };
+                colVideo.appendChild(iframe);
+                row.appendChild(colCheckbox);
+                row.appendChild(colTitle);
+                row.appendChild(colVideo);
+                list.appendChild(row);
+            });
         }
-      });
-    }
-    
-    async function downloadSelected() {
-      let selected = [...document.querySelectorAll("input[type=checkbox]:checked")].map(cb => cb.value);
-      if (selected.length === 0) {
-        alert("Please select at least one video.");
-        return;
-      }
 
-      let response = await fetch("/download", {
-        method: "POST",
-        body: JSON.stringify({ urls: selected }),
-        headers: { "Content-Type": "application/json" }
-      });
-
-      if (!response.ok) {
-        alert("Error downloading files. Please try again.");
-        return;
-      }
-
-      let blob = await response.blob();
-      let link = document.createElement("a");
-      link.href = URL.createObjectURL(blob);
-      link.download = "downloads.zip";
-      link.click();
-    }
-  </script>
+        async function downloadSelected() {
+            let selected = Array.from(selectedVideos);
+            if (selected.length === 0) {
+                alert("Please select at least one video.");
+                return;
+            }
+            let response = await fetch("/download", {
+                method: "POST",
+                body: JSON.stringify({ urls: selected }),
+                headers: { "Content-Type": "application/json" }
+            });
+            if (!response.ok) {
+                alert("Error downloading files. Please try again.");
+                return;
+            }
+            let blob = await response.blob();
+            let link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = "downloads.zip";
+            link.click();
+        }
+    </script>
 </head>
-<body>
-  <div class="container">
+<body class="container py-5">
     <h1 class="mb-4">YouTube MP3 Downloader</h1>
-    <div class="input-group mb-3">
-      <input type="text" id="video_id" class="form-control" placeholder="Enter YouTube Video ID or URL" />
-      <button class="btn btn-primary" onclick="fetchVideos()">Get Related Videos</button>
-    </div>
-    <div id="video_list"></div>
-    <button class="btn btn-success mt-3" onclick="downloadSelected()">Download Selected</button>
-  </div>
-  <!-- Bootstrap JS Bundle (optional, for interactive components) -->
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <input type="text" id="video_id" class="form-control mb-3" placeholder="Enter YouTube Video URL">
+    <button onclick="fetchVideos()" class="btn btn-primary">Get Related Videos</button>
+    <div id="video_list" class="list-group mt-3"></div>
+    <button onclick="downloadSelected()" class="btn btn-success mt-3">Download Selected</button>
 </body>
 </html>
+
