@@ -1,78 +1,104 @@
-from flask import Flask, render_template, request, jsonify
-import yt_dlp
+from flask import Flask, render_template, request, jsonify, send_file
+import http.client
+import json
 import os
-import requests
+import shutil
+import yt_dlp
+import re
 
 app = Flask(__name__)
-
-# 🔹 Your YouTube Data API Key
-YOUTUBE_API_KEY = "AIzaSyD1eTG59YLjaq9VYD8Vl2so86eh4-eLKIU"
-
-# 🔹 Folder to Save Downloads
 DOWNLOAD_FOLDER = "downloads"
+
+API_HOST = "youtube-v31.p.rapidapi.com"
+API_KEY = "56dfead9d0msh16dd2994a8f600dp12c061jsn103a13978d3f"  # 🔴 Replace with your actual API key!
+
+# Ensure download folder exists
 os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
 
-def get_video_info(video_url):
-    """Extracts video ID and fetches title using YouTube Data API."""
-    video_id = video_url.split("v=")[-1].split("&")[0]
-    api_url = f"https://www.googleapis.com/youtube/v3/videos?id={video_id}&key={YOUTUBE_API_KEY}&part=snippet"
-    response = requests.get(api_url)
-    if response.status_code == 200:
-        data = response.json()
-        if "items" in data and len(data["items"]) > 0:
-            title = data["items"][0]["snippet"]["title"]
-            return video_id, title
-    return None, None
+# Allowed YouTube URL patterns
+YOUTUBE_REGEX = re.compile(
+    r"^(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})"
+)
 
-@app.route("/")
-def home():
-    """Render the main page."""
-    return render_template("index.html")
+# Function to extract video ID from a valid URL
+def extract_video_id(youtube_url):
+    match = YOUTUBE_REGEX.match(youtube_url)
+    return match.group(1) if match else None
 
-@app.route("/download", methods=["POST"])
-def download_mp3():
-    """Download a YouTube video as MP3."""
-    data = request.json
-    youtube_url = data.get("url")
+# Function to get related video links (limit the returned list to 5)
+def get_related_videos(video_id, max_results=5):
+    try:
+        conn = http.client.HTTPSConnection(API_HOST)
+        headers = {
+            "x-rapidapi-key": API_KEY,
+            "x-rapidapi-host": API_HOST,
+        }
+        conn.request("GET", f"/search?relatedToVideoId={video_id}&part=id,snippet&type=video&maxResults={max_results}", headers=headers)
+        res = conn.getresponse()
 
-    if not youtube_url:
-        return jsonify({"error": "No URL provided"}), 400
+        if res.status != 200:
+            return []  # Return empty list if API call fails
 
-    video_id, title = get_video_info(youtube_url)
-    if not title:
-        return jsonify({"error": "Could not retrieve video details. Check API Key or video availability."}), 400
+        data = json.loads(res.read().decode("utf-8"))
+        video_links = [
+            {"title": item["snippet"]["title"], "url": f"https://www.youtube.com/watch?v={item['id']['videoId']}"}
+            for item in data.get("items", [])
+        ]
+        return video_links[:max_results]  # ensure only max_results are returned
+    except Exception as e:
+        print(f"Error fetching related videos: {e}")
+        return []
 
+# Function to download YouTube videos as MP3
+def download_mp3(youtube_url):
     try:
         ydl_opts = {
             "format": "bestaudio/best",
-            "outtmpl": os.path.join(DOWNLOAD_FOLDER, f"{title}.mp3"),
-            "postprocessors": [
-                {
-                    "key": "FFmpegExtractAudio",
-                    "preferredcodec": "mp3",
-                    "preferredquality": "192",
-                }
-            ],
+            "outtmpl": os.path.join(DOWNLOAD_FOLDER, "%(title)s.%(ext)s"),
+            "postprocessors": [{"key": "FFmpegExtractAudio", "preferredcodec": "mp3", "preferredquality": "64"}],
             "noplaylist": True,
-            "quiet": False,
+            "quiet": True,
         }
-
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.download([youtube_url])
-
-        return jsonify({"success": True, "file": f"{title}.mp3"})
-
+            info = ydl.extract_info(youtube_url, download=True)
+            return f"{info['title']}.mp3"
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        print(f"Error downloading {youtube_url}: {e}")
+        return None
 
-@app.route("/list_downloads", methods=["GET"])
-def list_downloads():
-    """Return a list of all downloaded MP3 files."""
-    try:
-        files = [f for f in os.listdir(DOWNLOAD_FOLDER) if f.endswith(".mp3")]
-        return jsonify({"files": files})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+@app.route('/')
+def index():
+    return render_template('index.html')
 
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+@app.route('/get_videos', methods=['POST'])
+def get_videos():
+    youtube_url = request.form.get('video_id')
+    video_id = extract_video_id(youtube_url)
+
+    if not video_id:
+        return jsonify({"error": "Invalid YouTube URL. Please enter a correct link."}), 400
+
+    videos = get_related_videos(video_id)
+    return jsonify(videos)
+
+@app.route('/download', methods=['POST'])
+def download():
+    urls = request.json.get('urls', [])
+    if not urls:
+        return jsonify({"error": "No videos selected"}), 400
+
+    downloaded_files = []
+    for url in urls:
+        filename = download_mp3(url)
+        if filename:
+            downloaded_files.append(filename)
+
+    if not downloaded_files:
+        return jsonify({"error": "No files downloaded"}), 500
+
+    zip_path = "downloads.zip"
+    shutil.make_archive("downloads", 'zip', DOWNLOAD_FOLDER)
+    return send_file(zip_path, as_attachment=True)
+
+if __name__ == '__main__':
+    app.run(debug=True)
