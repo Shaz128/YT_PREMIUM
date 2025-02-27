@@ -1,79 +1,162 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MP3 Downloader</title>
-    <script>
-        function startDownload() {
-            const url = document.getElementById("youtubeUrl").value;
-            if (!url) {
-                alert("Please enter a YouTube URL!");
-                alert(url)
-                return;
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>YouTube MP3 Downloader</title>
+  <!-- Bootstrap CSS -->
+  <link
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+    rel="stylesheet"
+  />
+  <style>
+    body {
+      padding: 2rem;
+      background-color: #f8f9fa;
+    }
+    .video-item {
+      margin-bottom: 1.5rem;
+      padding: 1rem;
+      border: 1px solid #dee2e6;
+      border-radius: 0.5rem;
+      background: #fff;
+    }
+    .preview {
+      margin-top: 0.5rem;
+    }
+  </style>
+  <script>
+    // Function to extract YouTube video ID from a URL in JS (similar to backend)
+    function extractVideoId(url) {
+      const regex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
+      const match = url.match(regex);
+      return match ? match[1] : null;
+    }
+
+    async function fetchVideos() {
+      let videoInput = document.getElementById("video_id").value;
+      if (!videoInput) {
+        alert("Please enter a YouTube Video ID or URL.");
+        return;
+      }
+
+      // Fetch new videos
+      let response = await fetch("/get_videos", {
+        method: "POST",
+        body: new URLSearchParams({ video_id: videoInput }),
+        headers: { "Content-Type": "application/x-www-form-urlencoded" }
+      });
+
+      let videos = await response.json();
+      // Limit to 5 items (if not already limited by backend)
+      videos = videos.slice(0, 5);
+
+      let list = document.getElementById("video_list");
+
+      // Preserve already checked (selected) items
+      let preserved = [];
+      let items = Array.from(list.getElementsByClassName("video-item"));
+      items.forEach(item => {
+        let checkbox = item.querySelector("input[type=checkbox]");
+        if (checkbox && checkbox.checked) {
+          preserved.push(item);
+        } else {
+          item.remove();
+        }
+      });
+
+      // Get existing URLs from preserved items
+      let existingUrls = preserved.map(item =>
+        item.querySelector("input[type=checkbox]").value
+      );
+
+      // Append new videos if they are not already in the list
+      videos.forEach(video => {
+        if (!existingUrls.includes(video.url)) {
+          let li = document.createElement("div");
+          li.className = "video-item";
+
+          // Checkbox
+          let checkbox = document.createElement("input");
+          checkbox.type = "checkbox";
+          checkbox.value = video.url;
+          checkbox.className = "form-check-input me-2";
+          li.appendChild(checkbox);
+
+          // Video link
+          let link = document.createElement("a");
+          link.href = video.url;
+          link.target = "_blank";
+          link.textContent = video.title;
+          link.className = "fw-bold";
+          li.appendChild(link);
+
+          // Preview Button
+          let previewBtn = document.createElement("button");
+          previewBtn.textContent = "Preview";
+          previewBtn.className = "btn btn-sm btn-primary ms-3";
+          previewBtn.onclick = function() {
+            let previewDiv = li.querySelector(".preview");
+            if (previewDiv.style.display === "none") {
+              previewDiv.style.display = "block";
+            } else {
+              previewDiv.style.display = "none";
             }
+          };
+          li.appendChild(previewBtn);
 
-            document.getElementById("status").innerText = "Downloading...";
+          // Hidden preview div with embedded YouTube player
+          let previewDiv = document.createElement("div");
+          previewDiv.className = "preview mt-2";
+          previewDiv.style.display = "none";
+          let vidId = extractVideoId(video.url);
+          if (vidId) {
+            previewDiv.innerHTML = `<iframe width="300" height="169" src="https://www.youtube.com/embed/${vidId}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>`;
+          }
+          li.appendChild(previewDiv);
 
-            fetch("/download", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ url: url })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    document.getElementById("status").innerText = "Download Complete: " + data.file;
-                    loadDownloads(); // Refresh the download list
-                } else {
-                    alert("Error: " + data.error);
-                }
-            });
+          list.appendChild(li);
         }
+      });
+    }
+    
+    async function downloadSelected() {
+      let selected = [...document.querySelectorAll("input[type=checkbox]:checked")].map(cb => cb.value);
+      if (selected.length === 0) {
+        alert("Please select at least one video.");
+        return;
+      }
 
-        function loadDownloads() {
-            fetch("/list_downloads")
-            .then(response => response.json())
-            .then(data => {
-                const list = document.getElementById("download-list");
-                list.innerHTML = "";
+      let response = await fetch("/download", {
+        method: "POST",
+        body: JSON.stringify({ urls: selected }),
+        headers: { "Content-Type": "application/json" }
+      });
 
-                if (data.files.length > 0) {
-                    document.getElementById("download-table").style.display = "table";
-                }
+      if (!response.ok) {
+        alert("Error downloading files. Please try again.");
+        return;
+      }
 
-                data.files.forEach((file, index) => {
-                    let row = list.insertRow();
-                    row.insertCell(0).innerText = index + 1;
-                    row.insertCell(1).innerText = file;
-                });
-            });
-        }
-    </script>
-
-    <style>
-        body { font-family: Arial, sans-serif; }
-        #download-table { display: none; margin-top: 20px; border-collapse: collapse; width: 100%; }
-        #download-table th, #download-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-    </style>
+      let blob = await response.blob();
+      let link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = "downloads.zip";
+      link.click();
+    }
+  </script>
 </head>
-<body onload="loadDownloads()">
-    <h2>YouTube to MP3 Downloader</h2>
-    <input type="text" id="youtubeUrl" placeholder="Enter YouTube URL">
-    <button onclick="startDownload()">Download MP3</button>
-
-
-    <p id="status"></p>
-
-    <h3>Downloaded Files</h3>
-    <table id="download-table">
-        <thead>
-            <tr>
-                <th>#</th>
-                <th>File Name</th>
-            </tr>
-        </thead>
-        <tbody id="download-list"></tbody>
-    </table>
+<body>
+  <div class="container">
+    <h1 class="mb-4">YouTube MP3 Downloader</h1>
+    <div class="input-group mb-3">
+      <input type="text" id="video_id" class="form-control" placeholder="Enter YouTube Video ID or URL" />
+      <button class="btn btn-primary" onclick="fetchVideos()">Get Related Videos</button>
+    </div>
+    <div id="video_list"></div>
+    <button class="btn btn-success mt-3" onclick="downloadSelected()">Download Selected</button>
+  </div>
+  <!-- Bootstrap JS Bundle (optional, for interactive components) -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
