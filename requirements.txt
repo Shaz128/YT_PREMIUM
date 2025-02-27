@@ -2,4 +2,3 @@ Flask==3.1.0
 yt-dlp==2025.2.19
 gunicorn==23.0.0
 ffmpeg==1.4
-ffmpeg-python==1.4
