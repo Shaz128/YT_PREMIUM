@@ -105,8 +105,13 @@ def stream_audio():
     filepath = os.path.join(DOWNLOAD_FOLDER, filename)
     return send_file(filepath, as_attachment=False, mimetype="audio/mpeg")
 
-@app.route('/download', methods=['POST'])
+
+@app.route('/download', methods=['GET', 'POST'])
+
 def download():
+    if not request.is_json:  # Check if request contains JSON
+        return jsonify({"error": "Invalid request format. Expected JSON."}), 400
+    
     urls = request.json.get('urls', [])
     if not urls:
         return jsonify({"error": "No videos selected"}), 400
@@ -123,6 +128,7 @@ def download():
     zip_path = "downloads.zip"
     shutil.make_archive("downloads", 'zip', DOWNLOAD_FOLDER)
     return send_file(zip_path, as_attachment=True)
+
 
 if __name__ == '__main__':
     app.run(debug=True)
