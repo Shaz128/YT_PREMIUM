@@ -64,7 +64,6 @@ def download_mp3(youtube_url):
             "postprocessors": [{
                 "key": "FFmpegExtractAudio",
                 "preferredcodec": "mp3",
-                "cookies":"cookies.txt",
                 "preferredquality": "128"
             }],  # Faster, better quality
             "noplaylist":
