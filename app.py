@@ -63,7 +63,6 @@ def download_mp3(youtube_url):
     """Downloads a YouTube video as MP3 using yt-dlp"""
 
 
-ffmpeg_path = ffmpeg.get_ffmpeg_exe()
 
     try:
         ydl_opts = {
@@ -73,9 +72,7 @@ ffmpeg_path = ffmpeg.get_ffmpeg_exe()
                 "key": "FFmpegExtractAudio",
                 "preferredcodec": "mp3",
                 "preferredquality": "128"
-            }],  
-               ffmpeg_location": ffmpeg_path
-# Faster, better quality
+            }],# Faster, better quality
             "noplaylist":
             True,
             "quiet":
