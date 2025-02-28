@@ -67,7 +67,7 @@ def download_mp3(youtube_url):
             }],
             "noplaylist": True,
             "quiet": True,
-            "cookiefile": "cookies/cookies.txt",  # Pass cookies to yt-dlp
+            "cookiefile": "cookies.txt",  # Pass cookies to yt-dlp
         }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(youtube_url, download=False)
