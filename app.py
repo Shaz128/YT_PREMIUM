@@ -56,29 +56,32 @@ def get_related_videos(video_id, max_results=5):
 
 
 def download_mp3(youtube_url):
-    """Downloads a YouTube video as MP3 using yt-dlp with authentication cookies"""
+    """Downloads a YouTube video as MP3 using yt-dlp"""
     try:
         ydl_opts = {
-            "format": "bestaudio/best",
+            "format":
+            "bestaudio/best",
             "postprocessors": [{
                 "key": "FFmpegExtractAudio",
                 "preferredcodec": "mp3",
                 "preferredquality": "128"
-            }],
-            "noplaylist": True,
-            "quiet": True,
-            "cookiefile": "cookies.txt",  # Pass cookies to yt-dlp
+            }],  # Faster, better quality
+            "noplaylist":
+            True,
+            "quiet":
+            True,
         }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(youtube_url, download=False)
-            video_title = re.sub(r"[^a-zA-Z0-9 ]", "", info["title"])
+            video_title = re.sub(r"[^a-zA-Z0-9 ]", "",
+                                 info["title"])  # Clean filename
             filename = f"{video_title}.mp3"
             ydl_opts["outtmpl"] = os.path.join(DOWNLOAD_FOLDER, filename)
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 ydl.download([youtube_url])
             return filename
     except Exception as e:
-        logging.error(f"Error downloading {youtube_url}: {e}")
+        print(f"Error downloading {youtube_url}: {e}")
         return None
 
 
