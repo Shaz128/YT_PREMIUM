@@ -7,6 +7,7 @@ import shutil
 import re
 import concurrent.futures  # For parallel downloads
 import imageio_ffmpeg as ffmpeg
+import subprocess
 
 # Print ffmpeg path to confirm installation
 print(ffmpeg.get_ffmpeg_version())
@@ -14,6 +15,14 @@ print("got the pathhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh")
 
 app = Flask(__name__)
 DOWNLOAD_FOLDER = "downloads"
+
+
+try:
+    result = subprocess.run(["ffmpeg", "-version"], capture_output=True, text=True)
+    print("FFmpeg is installed and working:\n", result.stdout)
+except FileNotFoundError:
+    print("FFmpeg is NOT installed or not found in PATH.")
+
 
 # Clear and recreate download folder
 shutil.rmtree(DOWNLOAD_FOLDER, ignore_errors=True)
@@ -60,29 +69,27 @@ def get_related_videos(video_id, max_results=5):
         return []
 
 
+
 def download_mp3(youtube_url):
-    """Downloads a YouTube video as MP3 using yt-dlp"""
-
-
-
+    """Downloads a YouTube video as MP3 using yt-dlp with a custom FFmpeg path"""
     try:
+        ffmpeg_path = ffmpeg.get_ffmpeg_exe()  # Get the exact ffmpeg path
+        print(f"Using FFmpeg from: {ffmpeg_path}")  # Debugging
+
         ydl_opts = {
-            "format":
-            "bestaudio/best",
+            "format": "bestaudio/best",
             "postprocessors": [{
                 "key": "FFmpegExtractAudio",
                 "preferredcodec": "mp3",
                 "preferredquality": "128"
-            }],# Faster, better quality
-            "noplaylist":
-            True,
-            "quiet":
-            True,
+            }],
+            "noplaylist": True,
+            "quiet": False,
+            "ffmpeg_location": ffmpeg_path,  # Force yt-dlp to use this FFmpeg
         }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(youtube_url, download=False)
-            video_title = re.sub(r"[^a-zA-Z0-9 ]", "",
-                                 info["title"])  # Clean filename
+            video_title = re.sub(r"[^a-zA-Z0-9 ]", "", info["title"])
             filename = f"{video_title}.mp3"
             ydl_opts["outtmpl"] = os.path.join(DOWNLOAD_FOLDER, filename)
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -91,7 +98,6 @@ def download_mp3(youtube_url):
     except Exception as e:
         print(f"Error downloading {youtube_url}: {e}")
         return None
-
 
 @app.route('/')
 def index():
