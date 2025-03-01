@@ -9,7 +9,7 @@ import concurrent.futures  # For parallel downloads
 import imageio_ffmpeg as ffmpeg
 
 # Print ffmpeg path to confirm installation
-print(ffmpeg.get_ffmpeg_version())
+print("jayyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy")
 
 app = Flask(__name__)
 DOWNLOAD_FOLDER = "downloads"
