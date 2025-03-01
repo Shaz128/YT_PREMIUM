@@ -1,7 +1,7 @@
 # Use an official Python image
 FROM python:3.9
 
-# Install ffmpeg and ffprobe
+# Install ffmpeg and dependencies
 RUN apt-get update && apt-get install -y ffmpeg
 
 # Set the working directory
@@ -13,5 +13,8 @@ COPY . .
 # Install dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Run the app
+# Expose Railway's dynamic port
+EXPOSE 5000
+
+# Run the Flask app
 CMD ["python", "app.py"]
