@@ -1,233 +1,55 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>YouTube MP3 Downloader</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
-    <style>
-        body {
-            background: radial-gradient(circle, #3D6168 0%, #161C22 100%);
-            color: white;
-        }
-
-        .video-item {
-            padding: 10px;
-            border-radius: 8px;
-            background-color: rgba(255, 255, 255, 0.1);
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            transition: background 0.2s ease-in-out;
-            border: 1px solid transparent;
-        }
-
-        .video-item:hover {
-            background-color: rgba(255, 255, 255, 0.2);
-        }
-
-        .selected {
-            background-color: #BC8C45 !important;
-            border: 1px solid #d9a864;
-        }
-
-        .form-check-input {
-            transform: scale(1.5);
-            margin-right: 10px;
-            pointer-events: none;
-            accent-color: #BC8C45;
-        }
-
-        .iframe-container {
-            max-width: 500px;
-            width: 100%;
-            position: relative;
-        }
-
-        .iframe-container iframe {
-            width: 100%;
-            height: 281px;
-            /* 16:9 aspect ratio */
-        }
-
-        .video-title a {
-            color: #BC8C45;
-            text-decoration: none;
-            font-weight: bold;
-            transition: color 0.3s ease-in-out;
-        }
-
-        .video-title a:hover {
-            color: #d9a864;
-        }
-
-        #video_title_box {
-            display: none;
-            margin-bottom: 10px;
-            padding: 10px;
-            border: 1px solid #BC8C45;
-            border-radius: 5px;
-            background-color: rgba(255, 255, 255, 0.1);
-            font-weight: bold;
-        }
-
-        .btn-primary {
-            background-color: #BC8C45;
-            border-color: #BC8C45;
-        }
-
-        .btn-primary:hover {
-            background-color: #d9a864;
-            border-color: #d9a864;
-        }
-
-        .btn-success {
-            background-color: #3D6168;
-            border-color: #3D6168;
-        }
-
-        .btn-success:hover {
-            background-color: #5C858F;
-            border-color: #5C858F;
-        }
-    </style>
-    <script>
-        let selectedVideos = new Set();
-
-        function saveSelections() {
-            document.cookie = "selectedVideos=" + JSON.stringify(Array.from(selectedVideos)) + "; path=/";
-        }
-
-        function loadSelections() {
-            let cookies = document.cookie.split("; ").find(row => row.startsWith("selectedVideos="));
-            if (cookies) {
-                selectedVideos = new Set(JSON.parse(cookies.split("=")[1]));
-            }
-        }
-
-        function toggleSelection(videoItem, checkbox, url) {
-            if (selectedVideos.has(url)) {
-                selectedVideos.delete(url);
-                videoItem.classList.remove("selected");
-                checkbox.checked = false;
-            } else {
-                selectedVideos.add(url);
-                videoItem.classList.add("selected");
-                checkbox.checked = true;
-            }
-            saveSelections();
-        }
-
-        async function fetchVideos() {
-            let videoId = document.getElementById("video_id").value;
-            if (!videoId) {
-                alert("Please enter a YouTube Video URL.");
-                return;
-            }
-            let response = await fetch("/get_videos", {
-                method: "POST",
-                body: new URLSearchParams({video_id: videoId}),
-                headers: {"Content-Type": "application/x-www-form-urlencoded"}
-            });
-            let videos = await response.json();
-            let list = document.getElementById("video_list");
-            list.innerHTML = "";
-
-            if (!videos.length) {
-                list.innerHTML = "<li class='list-group-item text-white'>No related videos found.</li>";
-                return;
-            }
-
-            videos.forEach(video => {
-                let videoItem = document.createElement("div");
-                videoItem.classList.add("row", "align-items-center", "mb-3", "video-item");
-
-                let colCheckbox = document.createElement("div");
-                colCheckbox.classList.add("col-1");
-
-                let checkbox = document.createElement("input");
-                checkbox.type = "checkbox";
-                checkbox.value = video.url;
-                checkbox.classList.add("form-check-input", "video-checkbox");
-                checkbox.checked = selectedVideos.has(video.url);
-                colCheckbox.appendChild(checkbox);
-
-                let colTitle = document.createElement("div");
-                colTitle.classList.add("col-6", "video-title");
-                let link = document.createElement("a");
-                link.href = video.url;
-                link.target = "_blank";
-                link.textContent = video.title;
-                colTitle.appendChild(link);
-
-                let colVideo = document.createElement("div");
-                colVideo.classList.add("col-5", "iframe-container");
-                let iframe = document.createElement("iframe");
-                iframe.width = "100%";
-                iframe.height = "281";
-                iframe.src = `https://www.youtube.com/embed/${new URL(video.url).searchParams.get("v")}`;
-                iframe.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture";
-                iframe.allowFullscreen = true;
-                colVideo.appendChild(iframe);
-
-                videoItem.addEventListener("click", (event) => {
-                    if (event.target.tagName === "A" || event.target.tagName === "IFRAME") return;
-                    toggleSelection(videoItem, checkbox, video.url);
-                });
-
-                if (selectedVideos.has(video.url)) {
-                    videoItem.classList.add("selected");
-                }
-
-                videoItem.appendChild(colCheckbox);
-                videoItem.appendChild(colTitle);
-                videoItem.appendChild(colVideo);
-                list.appendChild(videoItem);
-            });
-
-            saveSelections();
-        }
-
-        async function downloadSelected() {
-            let selected = Array.from(selectedVideos);
-            if (selected.length === 0) {
-                alert("Please select at least one video.");
-                return;
-            }
-            let response = await fetch("/download", {
-                method: "POST",
-                body: JSON.stringify({urls: selected}),
-                headers: {"Content-Type": "application/json"}
-            });
-            if (!response.ok) {
-                alert("Error downloading files. Please try again.");
-                return;
-            }
-            let blob = await response.blob();
-            let link = document.createElement("a");
-            link.href = URL.createObjectURL(blob);
-            link.download = "downloads.zip";
-            link.click();
-        }
-
-        window.onload = loadSelections;
-    </script>
 </head>
+<body>
+    <h1>YouTube MP3 Downloader</h1>
+    <input type="text" id="video_url" placeholder="Enter YouTube URL">
+    <button onclick="fetchVideos()">Get Related Videos</button>
+    <ul id="video_list"></ul>
+    <button onclick="downloadSelected()">Download as ZIP</button>
+    <a href="/player"><button>Go to MP3 Player</button></a>
 
-<body class="container py-5">
-    <h1 class="mb-4 text-center">YouTube MP3 Downloader</h1>
+    <script>
+        let selectedVideos = [];
 
-    <div id="video_title_box"></div>
+        function fetchVideos() {
+            let url = document.getElementById("video_url").value;
+            fetch("/get_videos", {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                body: "video_id=" + encodeURIComponent(url)
+            })
+            .then(response => response.json())
+            .then(data => {
+                let list = document.getElementById("video_list");
+                list.innerHTML = "";
+                data.forEach(video => {
+                    let li = document.createElement("li");
+                    li.innerHTML = `<input type="checkbox" value="${video.url}">${video.title}`;
+                    list.appendChild(li);
+                });
+            });
+        }
 
-    <div class="d-flex mb-3">
-        <input type="text" id="video_id" class="form-control me-2" placeholder="Enter YouTube Video URL">
-        <button onclick="fetchVideos()" class="btn btn-primary me-2">Get Related Videos</button>
-        <button onclick="downloadSelected()" class="btn btn-success">Download Selected</button>
-    </div>
-
-    <div id="video_list" class="list-group mt-3"></div>
+        function downloadSelected() {
+            selectedVideos = Array.from(document.querySelectorAll("input[type='checkbox']:checked")).map(el => el.value);
+            fetch("/download", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ urls: selectedVideos })
+            })
+            .then(response => response.blob())
+            .then(blob => {
+                let link = document.createElement("a");
+                link.href = URL.createObjectURL(blob);
+                link.download = "downloads.zip";
+                link.click();
+            });
+        }
+    </script>
 </body>
-
 </html>
