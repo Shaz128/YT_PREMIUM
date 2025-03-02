@@ -167,7 +167,7 @@
                 let iframe = document.createElement("iframe");
                 iframe.width = "100%";
                 iframe.height = "281";
-                iframe.src = https://www.youtube.com/embed/${new URL(video.url).searchParams.get("v")};
+                iframe.src = `https://www.youtube.com/embed/${new URL(video.url).searchParams.get("v")}`;
                 iframe.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture";
                 iframe.allowFullscreen = true;
                 colVideo.appendChild(iframe);
