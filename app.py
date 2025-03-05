@@ -154,16 +154,20 @@ def get_related_videos(video_id, max_results=5):
         print(f"Error fetching related videos: {e}")
         return []
 
+
 def download_mp3(youtube_url):
     try:
         ffmpeg_path = ffmpeg.get_ffmpeg_exe()
         ydl_opts = {
             "format": "bestaudio/best",
-            "postprocessors": [{
-                "key": "FFmpegExtractAudio",
-                "preferredcodec": "mp3",
-                "preferredquality": "128"
-            }],"cookies": "cookies.txt"
+            "postprocessors": [
+                {
+                    "key": "FFmpegExtractAudio",
+                    "preferredcodec": "mp3",
+                    "preferredquality": "128"
+                }
+            ],
+            "cookies": "cookies.txt",  # Add this line
             "noplaylist": True,
             "quiet": False,
             "ffmpeg_location": ffmpeg_path,
@@ -175,10 +179,11 @@ def download_mp3(youtube_url):
             ydl_opts["outtmpl"] = os.path.join(DOWNLOAD_FOLDER, filename)
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 ydl.download([youtube_url])
-            return filename
+        return filename
     except Exception as e:
         print(f"Error downloading {youtube_url}: {e}")
         return None
+
 
 @app.route('/')
 def index():
