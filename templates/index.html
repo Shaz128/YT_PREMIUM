@@ -120,25 +120,95 @@
             saveSelections();
         }
 
-        async function fetchVideos() {
-            let videoId = document.getElementById("video_id").value;
-            if (!videoId) {
-                alert("Please enter a YouTube Video URL.");
-                return;
-            }
-            let response = await fetch("/get_videos", {
-                method: "POST",
-                body: new URLSearchParams({video_id: videoId}),
-                headers: {"Content-Type": "application/x-www-form-urlencoded"}
-            });
-            let videos = await response.json();
-            let list = document.getElementById("video_list");
-            list.innerHTML = "";
 
-            if (!videos.length) {
-                list.innerHTML = "<li class='list-group-item text-white'>No related videos found.</li>";
-                return;
-            }
+    async function fetchVideos() {
+    let videoId = document.getElementById("video_id").value;
+    if (!videoId) {
+        alert("Please enter a YouTube Video URL.");
+        return;
+    }
+
+    let response = await fetch("/get_videos", {
+        method: "POST",
+        body: new URLSearchParams({video_id: videoId}),
+        headers: {"Content-Type": "application/x-www-form-urlencoded"}
+    });
+
+    let newVideos = await response.json();
+
+    if (!newVideos.length) {
+        alert("No related videos found.");
+        return;
+    }
+
+    // Keep only new videos that are not already selected
+    let existingVideoURLs = new Set([...selectedVideos]);  
+    let filteredNewVideos = newVideos.filter(video => !existingVideoURLs.has(video.url));
+
+    // Combine previously selected videos with new related videos
+    let combinedVideos = [...selectedVideos].map(url => ({
+        title: urlToTitle[url] || "Previously Selected",
+        url: url
+    })).concat(filteredNewVideos);
+
+    updateVideoList(combinedVideos);
+}
+
+// Helper function to refresh UI list
+function updateVideoList(videos) {
+    let list = document.getElementById("video_list");
+    list.innerHTML = ""; 
+
+    videos.forEach(video => {
+        let videoItem = document.createElement("div");
+        videoItem.classList.add("row", "align-items-center", "mb-3", "video-item");
+
+        let colCheckbox = document.createElement("div");
+        colCheckbox.classList.add("col-1");
+
+        let checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.value = video.url;
+        checkbox.classList.add("form-check-input", "video-checkbox");
+        checkbox.checked = selectedVideos.has(video.url);
+        colCheckbox.appendChild(checkbox);
+
+        let colTitle = document.createElement("div");
+        colTitle.classList.add("col-6", "video-title");
+        let link = document.createElement("a");
+        link.href = video.url;
+        link.target = "_blank";
+        link.textContent = video.title;
+        colTitle.appendChild(link);
+
+        let colVideo = document.createElement("div");
+        colVideo.classList.add("col-5", "iframe-container");
+        let iframe = document.createElement("iframe");
+        iframe.width = "100%";
+        iframe.height = "281";
+        iframe.src = `https://www.youtube.com/embed/${new URL(video.url).searchParams.get("v")}`;
+        iframe.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture";
+        iframe.allowFullscreen = true;
+        colVideo.appendChild(iframe);
+
+        videoItem.addEventListener("click", (event) => {
+            if (event.target.tagName === "A" || event.target.tagName === "IFRAME") return;
+            toggleSelection(videoItem, checkbox, video.url);
+        });
+
+        if (selectedVideos.has(video.url)) {
+            videoItem.classList.add("selected");
+        }
+
+        videoItem.appendChild(colCheckbox);
+        videoItem.appendChild(colTitle);
+        videoItem.appendChild(colVideo);
+        list.appendChild(videoItem);
+    });
+
+    saveSelections();
+}
+
 
             videos.forEach(video => {
                 let videoItem = document.createElement("div");
@@ -188,7 +258,7 @@
             });
 
             saveSelections();
-        }
+        
 
         async function downloadSelected() {
             let selected = Array.from(selectedVideos);
@@ -213,6 +283,69 @@
         }
 
         window.onload = loadSelections;
+        document.getElementById("fetchVideos").addEventListener("click", function() {
+    let progressBar = document.getElementById("fetchProgress");
+    let bar = document.getElementById("fetchBar");
+
+    // Show progress bar
+    progressBar.style.display = "block";
+    bar.style.width = "0%";
+
+    let interval = setInterval(() => {
+        let currentWidth = parseInt(bar.style.width);
+        if (currentWidth < 90) { // Simulate progress until API response
+            bar.style.width = (currentWidth + 10) + "%";
+        }
+    }, 500);
+
+    // Fetch related videos
+    fetch('/get_videos', { method: 'POST', body: new FormData(document.getElementById("videoForm")) })
+        .then(response => response.json())
+        .then(data => {
+            clearInterval(interval);
+            bar.style.width = "100%"; // Complete progress
+            setTimeout(() => { progressBar.style.display = "none"; }, 500);
+            displayVideos(data); // Function to display videos
+        })
+        .catch(error => {
+            clearInterval(interval);
+            progressBar.style.display = "none"; // Hide on error
+            alert("Error fetching videos!");
+        });
+});
+
+document.getElementById("downloadBtn").addEventListener("click", function() {
+    let selectedVideos = [...document.querySelectorAll(".video-checkbox:checked")].map(cb => cb.value);
+    if (selectedVideos.length === 0) {
+        alert("No videos selected!");
+        return;
+    }
+
+    let progressBar = document.getElementById("downloadProgress");
+    let bar = document.getElementById("downloadBar");
+
+    // Show progress bar
+    progressBar.style.display = "block";
+    bar.style.width = "0%";
+
+    let totalVideos = selectedVideos.length;
+    let completed = 0;
+
+    selectedVideos.forEach((video, index) => {
+        fetch(`/download_video?url=${encodeURIComponent(video)}`)
+            .then(response => response.json())
+            .then(() => {
+                completed++;
+                bar.style.width = `${(completed / totalVideos) * 100}%`;
+                if (completed === totalVideos) {
+                    setTimeout(() => { progressBar.style.display = "none"; }, 500);
+                }
+            })
+            .catch(() => {
+                alert("Error downloading " + video);
+            });
+    });
+});
     </script>
 </head>
 
@@ -224,9 +357,11 @@
     <div class="d-flex mb-3">
         <input type="text" id="video_id" class="form-control me-2" placeholder="Enter YouTube Video URL">
         <button onclick="fetchVideos()" class="btn btn-primary me-2">Get Related Videos</button>
-        <button onclick="downloadSelected()" class="btn btn-success">Download Selected</button>
+        <button onclick="downloadSelected()" class="btn btn-success" id="fetchVideos">Download Selected</button>
     </div>
-
+    <div id="fetchProgress" style="width: 100%; background: #ccc; height: 5px; display: none;">
+        <div id="fetchBar" style="width: 0%; height: 5px; background: #4caf50;"></div>
+    </div>
     <div id="video_list" class="list-group mt-3"></div>
 </body>
 
