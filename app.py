@@ -2,20 +2,20 @@ from flask import Flask, render_template, request, jsonify, send_file
 import http.client
 import json
 import os
+from urllib.parse import unquote
 import yt_dlp
 import shutil
+import time
 import re
 import concurrent.futures  # For parallel downloads
 import imageio_ffmpeg as ffmpeg
 import subprocess
-
-# Print ffmpeg path to confirm installation
-print(ffmpeg.get_ffmpeg_version())
-print("got the pathhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh")
+import threading
 
 app = Flask(__name__)
 DOWNLOAD_FOLDER = "downloads"
-
+WEBM_FOLDER = "RECOMMEND_DOWNLOAD"
+download_in_progress = threading.Lock()
 
 try:
     result = subprocess.run(["ffmpeg", "-version"], capture_output=True, text=True)
@@ -23,28 +23,116 @@ try:
 except FileNotFoundError:
     print("FFmpeg is NOT installed or not found in PATH.")
 
-
-# Clear and recreate download folder
 shutil.rmtree(DOWNLOAD_FOLDER, ignore_errors=True)
 os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
 
 API_HOST = "youtube-v31.p.rapidapi.com"
 API_KEY = "56dfead9d0msh16dd2994a8f600dp12c061jsn103a13978d3f"  # Replace with your actual API key!
 
-# YouTube URL validation regex
 YOUTUBE_REGEX = re.compile(
     r"^(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})"
 )
+#####################################################################
 
-
-def extract_video_id(youtube_url):
-    """Extracts the video ID from a YouTube URL"""
+def extract_video_idp(youtube_url):
+    """Extracts video ID from YouTube URL"""
     match = YOUTUBE_REGEX.match(youtube_url)
     return match.group(1) if match else None
 
+def get_related_videosp(video_id, max_results=5):
+    """Fetch related YouTube videos"""
+    try:
+        conn = http.client.HTTPSConnection(API_HOST)
+        headers = {"x-rapidapi-key": API_KEY, "x-rapidapi-host": API_HOST}
+        conn.request("GET", f"/search?relatedToVideoId={video_id}&part=id,snippet&type=video&maxResults={max_results}", headers=headers)
+        res = conn.getresponse()
+
+        if res.status != 200:
+            return []
+
+        data = json.loads(res.read().decode("utf-8"))
+        return [{
+            "title": item["snippet"]["title"],
+            "url": f"https://www.youtube.com/watch?v={item['id']['videoId']}"
+        } for item in data.get("items", [])]
+    except Exception as e:
+        print(f"Error fetching related videos: {e}")
+        return []
+
+
+def download_webmp(youtube_url, video_title):
+    """Downloads a YouTube video's audio in .webm format with a sanitized title."""
+    try:
+        safe_title = sanitize_filename(video_title)
+        ydl_opts = {
+            "format": "bestaudio/best",
+            "outtmpl": os.path.join(WEBM_FOLDER, f"{safe_title}.%(ext)s"),
+            "noplaylist": True,
+            "quiet": True,
+            "postprocessors": [                {
+                    "key": "FFmpegExtractAudio",
+                    "preferredcodec": "mp3",
+                    "preferredquality": "128"
+                }
+],
+        }
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([youtube_url])
+        print(f"Downloaded: {youtube_url} as {video_title}.mp3")
+    except Exception as e:
+        print(f"Error downloading {youtube_url}: {e}")
+
+def start_background_downloadp(video_list):
+    """Starts downloading all related videos in the background"""
+    for video in video_list:
+        download_webmp(video["url"], video["title"])
+        time.sleep(1)  # Small delay to prevent system overload
+
+@app.route("/player")
+def indexp():
+    """Render HTML page"""
+    return render_template("player.html")
+
+@app.route("/get_videosp", methods=["POST"])
+def get_videosp():
+    """Fetch related videos and start background downloads"""
+    youtube_url = request.form.get("video_id")
+    video_id = extract_video_idp(youtube_url)
+    if not video_id:
+        return jsonify({"error": "Invalid YouTube URL"}), 400
+
+    videos = get_related_videosp(video_id)
+    threading.Thread(target=start_background_downloadp, args=(videos,), daemon=True).start()
+    return jsonify(videos)
+
+@app.route("/list_audiop")
+def list_audiop():
+    """Returns a list of available .webm files"""
+    files = [f for f in os.listdir(WEBM_FOLDER) if f.endswith(".mp3")]
+    return jsonify(files)
+
+def sanitize_filename(title):
+    """Removes invalid filename characters from a video title."""
+    return re.sub(r'[\\/*?:"<>|]', "", title) 
+
+@app.route("/stream_audio/<filename>")
+def stream_audiop(filename):
+    """Streams an audio file"""
+    filename = unquote(filename)  # Replace %20 with spaces
+    file_path = os.path.join(WEBM_FOLDER, filename)
+    try:
+        return send_file(file_path, mimetype="audio/mp3", as_attachment=False)
+    except Exception as e:
+        return jsonify({"error": str(e)}),500
+
+
+
+####################################################################
+def extract_video_id(youtube_url):
+    match = YOUTUBE_REGEX.match(youtube_url)
+    return match.group(1) if match else None
 
 def get_related_videos(video_id, max_results=5):
-    """Fetch related YouTube videos asynchronously"""
     try:
         conn = http.client.HTTPSConnection(API_HOST)
         headers = {"x-rapidapi-key": API_KEY, "x-rapidapi-host": API_HOST}
@@ -55,27 +143,20 @@ def get_related_videos(video_id, max_results=5):
         res = conn.getresponse()
 
         if res.status != 200:
-            return []  # API error
+            return []
 
         data = json.loads(res.read().decode("utf-8"))
         return [{
-            "title":
-            item["snippet"]["title"],
-            "url":
-            f"https://www.youtube.com/watch?v={item['id']['videoId']}"
+            "title": item["snippet"]["title"],
+            "url": f"https://www.youtube.com/watch?v={item['id']['videoId']}"
         } for item in data.get("items", [])]
     except Exception as e:
         print(f"Error fetching related videos: {e}")
         return []
 
-
-
 def download_mp3(youtube_url):
-    """Downloads a YouTube video as MP3 using yt-dlp with a custom FFmpeg path"""
     try:
-        ffmpeg_path = ffmpeg.get_ffmpeg_exe()  # Get the exact ffmpeg path
-        print(f"Using FFmpeg from: {ffmpeg_path}")  # Debugging
-
+        ffmpeg_path = ffmpeg.get_ffmpeg_exe()
         ydl_opts = {
             "format": "bestaudio/best",
             "postprocessors": [{
@@ -85,7 +166,7 @@ def download_mp3(youtube_url):
             }],
             "noplaylist": True,
             "quiet": False,
-            "ffmpeg_location": ffmpeg_path,  # Force yt-dlp to use this FFmpeg
+            "ffmpeg_location": ffmpeg_path,
         }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(youtube_url, download=False)
@@ -101,14 +182,12 @@ def download_mp3(youtube_url):
 
 @app.route('/')
 def index():
-    """Renders the HTML page and clears old downloads"""
     shutil.rmtree(DOWNLOAD_FOLDER, ignore_errors=True)
     os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
     return render_template('index.html')
 
-
-@app.route('/get_video_title', methods=['POST'])
-def get_video_title():
+@app.route('/get_videos', methods=['POST'])
+def get_videos():
     youtube_url = request.form.get('video_id')
     video_id = extract_video_id(youtube_url)
 
@@ -118,45 +197,49 @@ def get_video_title():
     try:
         with yt_dlp.YoutubeDL({"quiet": True}) as ydl:
             info = ydl.extract_info(youtube_url, download=False)
-            return jsonify({"title": info["title"]})
+            video_title = info.get("title", "Unknown Title")  # Fallback in case title is missing
     except Exception as e:
         print(f"Error fetching video title: {e}")
-        return jsonify({"error": "Unable to fetch title"}), 500
+        video_title = "Unknown Title"
 
-
-@app.route('/get_videos', methods=['POST'])
-def get_videos():
-    """Fetch related YouTube videos asynchronously"""
-    youtube_url = request.form.get('video_id')
-    video_id = extract_video_id(youtube_url)
-
-    if not video_id:
-        return jsonify({"error": "Invalid YouTube URL"}), 400
 
     videos = get_related_videos(video_id)
+    print(videos)
+    videos.insert(0, {"title": video_title, "url": youtube_url})  # Insert original video with actual title
     return jsonify(videos)
 
+@app.route('/download_video')
+def download_video():
+    video_url = request.args.get('url')
+    if not video_url:
+        return jsonify({"error": "No video URL provided"}), 400
+
+    # Simulate download delay
+    import time
+    time.sleep(2)  # Simulating download time
+
+    return jsonify({"status": "Downloaded", "url": video_url})
 
 @app.route('/download', methods=['POST'])
 def download():
-    """Download selected videos in parallel and return a ZIP file"""
     if not request.is_json:
-        return jsonify({"error":
-                        "Invalid request format. Expected JSON."}), 400
+        return jsonify({"error": "Invalid request format. Expected JSON."}), 400
+
+    if download_in_progress.locked():
+        return jsonify({"error": "A download is already in progress. Please wait."}), 429
 
     urls = request.json.get('urls', [])
     if not urls:
         return jsonify({"error": "No videos selected"}), 400
 
     downloaded_files = []
+    with download_in_progress:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+            results = executor.map(download_mp3, urls)
 
-    # Use ThreadPoolExecutor for parallel downloading
-    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
-        results = executor.map(download_mp3, urls)
-
-    for filename in results:
-        if filename:
-            downloaded_files.append(filename)
+        for filename in results:
+            if filename:
+                downloaded_files.append(filename)
 
     if not downloaded_files:
         return jsonify({"error": "No files downloaded"}), 500
@@ -164,7 +247,6 @@ def download():
     zip_path = "downloads.zip"
     shutil.make_archive("downloads", 'zip', DOWNLOAD_FOLDER)
     return send_file(zip_path, as_attachment=True)
-
 
 if __name__ == '__main__':
     app.run(debug=True)
