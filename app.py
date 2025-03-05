@@ -61,24 +61,27 @@ def get_related_videosp(video_id, max_results=5):
 
 
 def download_webmp(youtube_url, video_title):
-    """Downloads a YouTube video's audio in .webm format with a sanitized title."""
     try:
         safe_title = sanitize_filename(video_title)
+        ffmpeg_path = ffmpeg.get_ffmpeg_exe()       
         ydl_opts = {
             "format": "bestaudio/best",
-            "outtmpl": os.path.join(WEBM_FOLDER, f"{safe_title}.%(ext)s"),
-            "noplaylist": True,
-            "quiet": True,
             "postprocessors": [                {
                     "key": "FFmpegExtractAudio",
                     "preferredcodec": "mp3",
                     "preferredquality": "128"
                 }
-],"cookies": "cookies.txt"
+],"cookies": "cookies.txt",
+"noplaylist": True,
+            "quiet": False,
+            "ffmpeg_location": ffmpeg_path,
         }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info=ydl.extract_info(youtube_url,download=False)
+            ydl_opts["outtmpl"]=os.path.join(WEBM_FOLDER, f"{safe_title}.%(ext)s"),
             ydl.download([youtube_url])
         print(f"Downloaded: {youtube_url} as {video_title}.mp3")
+    
     except Exception as e:
         print(f"Error downloading {youtube_url}: {e}")
 
