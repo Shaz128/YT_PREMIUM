@@ -74,7 +74,7 @@ def download_webmp(youtube_url, video_title):
                     "preferredcodec": "mp3",
                     "preferredquality": "128"
                 }
-],
+],"cookies": "cookies.txt"
         }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([youtube_url])
@@ -163,7 +163,7 @@ def download_mp3(youtube_url):
                 "key": "FFmpegExtractAudio",
                 "preferredcodec": "mp3",
                 "preferredquality": "128"
-            }],
+            }],"cookies": "cookies.txt"
             "noplaylist": True,
             "quiet": False,
             "ffmpeg_location": ffmpeg_path,
