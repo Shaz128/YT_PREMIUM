@@ -59,6 +59,23 @@ def get_related_videosp(video_id, max_results=5):
         print(f"Error fetching related videos: {e}")
         return []
 
+def clear_folder():
+    # Check if the folder exists
+    if os.path.exists(WEBM_FOLDER):
+        # If the folder exists, clear its contents
+        for filename in os.listdir(WEBM_FOLDER):
+            file_path = os.path.join(WEBM_FOLDER, filename)
+            try:
+                if os.path.isfile(file_path) or os.path.islink(file_path):
+                    os.unlink(file_path)
+                elif os.path.isdir(file_path):
+                    shutil.rmtree(file_path)
+            except Exception as e:
+                print(f"Failed to delete {file_path}. Reason: {e}")
+    else:
+        # If the folder doesn't exist, create it
+        os.makedirs(WEBM_FOLDER)
+
 
 def download_webmp(youtube_url, video_title):
     try:
@@ -95,6 +112,7 @@ def start_background_downloadp(video_list):
 @app.route("/player")
 def indexp():
     """Render HTML page"""
+    clear_folder()
     return render_template("player.html")
 
 @app.route("/get_videosp", methods=["POST"])
