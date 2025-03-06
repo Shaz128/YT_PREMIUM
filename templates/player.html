@@ -161,14 +161,13 @@
             .then(() => refreshTracks())
             .catch(error => console.error("Error fetching videos:", error));
         }
-        function clearTrack() {
-            fetch('/cleartrackp', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-                body: new URLSearchParams({video_id: link})
-            })
-            .catch(error => console.error("Error fetching videos:", error));
-        }
+        function clearTracks() {
+  fetch('/cleartrackp', {
+    method: 'POST'
+  })
+  .catch(error => console.error("Error fetching videos:", error));
+}
+
         function refreshTracks() {
             fetch('/list_audiop')
                 .then(response => response.json())
