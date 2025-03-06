@@ -132,11 +132,14 @@ def list_audiop():
     """Returns a list of available .webm files"""
     files = [f for f in os.listdir(WEBM_FOLDER) if f.endswith(".mp3")]
     return jsonify(files)
+@app.route("/cleartrackp", methods=['POST'])
+def clear_tracks_endpoint():
+    clear_folder()  # Call the clear_tracks function
 
 def sanitize_filename(title):
     """Removes invalid filename characters from a video title."""
     return re.sub(r'[\\/*?:"<>|]', "", title) 
-
+#clear_folder
 @app.route("/stream_audio/<filename>")
 def stream_audiop(filename):
     """Streams an audio file"""
