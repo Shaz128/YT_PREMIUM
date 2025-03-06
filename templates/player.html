@@ -122,6 +122,7 @@
         <input type="text" id="youtube-link" placeholder="Enter YouTube URL">
         <button onclick="fetchVideos()">Get Related Videos</button>
         <button onclick="refreshTracks()">Refresh Tracks</button>
+        <button onclick="clearTracks()">Clear Folder</button>
         
         <div id="playlist" class="playlist"></div>
     </div>
@@ -160,7 +161,14 @@
             .then(() => refreshTracks())
             .catch(error => console.error("Error fetching videos:", error));
         }
-
+        function clearTrack() {
+            fetch('/cleartrackp', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                body: new URLSearchParams({video_id: link})
+            })
+            .catch(error => console.error("Error fetching videos:", error));
+        }
         function refreshTracks() {
             fetch('/list_audiop')
                 .then(response => response.json())
