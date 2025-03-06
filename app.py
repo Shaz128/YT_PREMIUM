@@ -66,19 +66,20 @@ def download_webmp(youtube_url, video_title):
         ffmpeg_path = ffmpeg.get_ffmpeg_exe()       
         ydl_opts = {
             "format": "bestaudio/best",
-            "postprocessors": [                {
+            "postprocessors": [
+                {
                     "key": "FFmpegExtractAudio",
                     "preferredcodec": "mp3",
                     "preferredquality": "128"
                 }
-],"cookies": "cookies.txt",
-"noplaylist": True,
+            ],
+            "cookies": os.path.abspath("cookies.txt"),  # Ensure absolute path
+            "noplaylist": True,
             "quiet": False,
             "ffmpeg_location": ffmpeg_path,
+            "outtmpl": os.path.join(WEBM_FOLDER, f"{safe_title}.%(ext)s")  # Fix misplaced comma
         }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info=ydl.extract_info(youtube_url,download=False)
-            ydl_opts["outtmpl"]=os.path.join(WEBM_FOLDER, f"{safe_title}.%(ext)s"),
             ydl.download([youtube_url])
         print(f"Downloaded: {youtube_url} as {video_title}.mp3")
     
