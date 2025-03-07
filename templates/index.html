@@ -1,368 +1,245 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>YouTube MP3 Downloader</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <title>Music Player</title>
     <style>
         body {
-            background: radial-gradient(circle, #3D6168 0%, #161C22 100%);
-            color: white;
+            background-color: #121212;
+            color: #ffffff;
+            font-family: Arial, sans-serif;
+            text-align: center;
+            padding: 20px;
         }
 
-        .video-item {
+        .container {
+            max-width: 400px;
+            margin: auto;
+            background: #1e1e1e;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+        }
+
+        input, button {
+            margin: 10px 0;
             padding: 10px;
-            border-radius: 8px;
-            background-color: rgba(255, 255, 255, 0.1);
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            transition: background 0.2s ease-in-out;
-            border: 1px solid transparent;
-        }
-
-        .video-item:hover {
-            background-color: rgba(255, 255, 255, 0.2);
-        }
-
-        .selected {
-            background-color: #BC8C45 !important;
-            border: 1px solid #d9a864;
-        }
-
-        .form-check-input {
-            transform: scale(1.5);
-            margin-right: 10px;
-            pointer-events: none;
-            accent-color: #BC8C45;
-        }
-
-        .iframe-container {
-            max-width: 500px;
             width: 100%;
-            position: relative;
-        }
-
-        .iframe-container iframe {
-            width: 100%;
-            height: 281px;
-            /* 16:9 aspect ratio */
-        }
-
-        .video-title a {
-            color: #BC8C45;
-            text-decoration: none;
-            font-weight: bold;
-            transition: color 0.3s ease-in-out;
-        }
-
-        .video-title a:hover {
-            color: #d9a864;
-        }
-
-        #video_title_box {
-            display: none;
-            margin-bottom: 10px;
-            padding: 10px;
-            border: 1px solid #BC8C45;
+            border: none;
             border-radius: 5px;
-            background-color: rgba(255, 255, 255, 0.1);
-            font-weight: bold;
+            font-size: 16px;
         }
 
-        .btn-primary {
-            background-color: #BC8C45;
-            border-color: #BC8C45;
+        input {
+            background: #333;
+            color: #fff;
         }
 
-        .btn-primary:hover {
-            background-color: #d9a864;
-            border-color: #d9a864;
+        button {
+            background: #6200ea;
+            color: white;
+            cursor: pointer;
+            transition: 0.3s;
         }
 
-        .btn-success {
-            background-color: #3D6168;
-            border-color: #3D6168;
+        button:hover {
+            background: #3700b3;
         }
 
-        .btn-success:hover {
-            background-color: #5C858F;
-            border-color: #5C858F;
+        .playlist {
+            max-height: 200px;
+            overflow-y: auto;
+            text-align: left;
+            background: #222;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+
+        .playlist-item {
+            padding: 8px;
+            cursor: pointer;
+            border-bottom: 1px solid #444;
+        }
+
+        .playlist-item:hover {
+            background: #6200ea;
+        }
+
+        .player {
+            margin-top: 20px;
+        }
+
+        .controls {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            background: #1e1e1e;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .control-buttons {
+            display: flex;
+            justify-content: center;
+        }
+/* Add a CSS class to highlight the current song */
+.playlist-item.current-song {
+  background-color: #6200ea; /* Lighter shade of the current theme color */
+  color: #fff;
+}
+
+        .controls button {
+            width: 40px;
+            height: 40px;
+            margin: 10px;
+            border: none;
+            background: #6200ea;
+            color: white;
+            font-size: 18px;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+
+        .controls button:hover {
+            background: #3700b3;
+        }
+
+        .seek-bar, .volume-bar {
+            width: 80%;
+            margin: 5px;
         }
     </style>
-    <script>
-        let selectedVideos = new Set();
-
-        function saveSelections() {
-            document.cookie = "selectedVideos=" + JSON.stringify(Array.from(selectedVideos)) + "; path=/";
-        }
-
-        function loadSelections() {
-            let cookies = document.cookie.split("; ").find(row => row.startsWith("selectedVideos="));
-            if (cookies) {
-                selectedVideos = new Set(JSON.parse(cookies.split("=")[1]));
-            }
-        }
-
-        function toggleSelection(videoItem, checkbox, url) {
-            if (selectedVideos.has(url)) {
-                selectedVideos.delete(url);
-                videoItem.classList.remove("selected");
-                checkbox.checked = false;
-            } else {
-                selectedVideos.add(url);
-                videoItem.classList.add("selected");
-                checkbox.checked = true;
-            }
-            saveSelections();
-        }
-
-
-    async function fetchVideos() {
-    let videoId = document.getElementById("video_id").value;
-    if (!videoId) {
-        alert("Please enter a YouTube Video URL.");
-        return;
-    }
-
-    let response = await fetch("/get_videos", {
-        method: "POST",
-        body: new URLSearchParams({video_id: videoId}),
-        headers: {"Content-Type": "application/x-www-form-urlencoded"}
-    });
-
-    let newVideos = await response.json();
-
-    if (!newVideos.length) {
-        alert("No related videos found.");
-        return;
-    }
-
-    // Keep only new videos that are not already selected
-    let existingVideoURLs = new Set([...selectedVideos]);  
-    let filteredNewVideos = newVideos.filter(video => !existingVideoURLs.has(video.url));
-
-    // Combine previously selected videos with new related videos
-    let combinedVideos = [...selectedVideos].map(url => ({
-        title: urlToTitle[url] || "Previously Selected",
-        url: url
-    })).concat(filteredNewVideos);
-
-    updateVideoList(combinedVideos);
-}
-
-// Helper function to refresh UI list
-function updateVideoList(videos) {
-    let list = document.getElementById("video_list");
-    list.innerHTML = ""; 
-
-    videos.forEach(video => {
-        let videoItem = document.createElement("div");
-        videoItem.classList.add("row", "align-items-center", "mb-3", "video-item");
-
-        let colCheckbox = document.createElement("div");
-        colCheckbox.classList.add("col-1");
-
-        let checkbox = document.createElement("input");
-        checkbox.type = "checkbox";
-        checkbox.value = video.url;
-        checkbox.classList.add("form-check-input", "video-checkbox");
-        checkbox.checked = selectedVideos.has(video.url);
-        colCheckbox.appendChild(checkbox);
-
-        let colTitle = document.createElement("div");
-        colTitle.classList.add("col-6", "video-title");
-        let link = document.createElement("a");
-        link.href = video.url;
-        link.target = "_blank";
-        link.textContent = video.title;
-        colTitle.appendChild(link);
-
-        let colVideo = document.createElement("div");
-        colVideo.classList.add("col-5", "iframe-container");
-        let iframe = document.createElement("iframe");
-        iframe.width = "100%";
-        iframe.height = "281";
-        iframe.src = `https://www.youtube.com/embed/${new URL(video.url).searchParams.get("v")}`;
-        iframe.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture";
-        iframe.allowFullscreen = true;
-        colVideo.appendChild(iframe);
-
-        videoItem.addEventListener("click", (event) => {
-            if (event.target.tagName === "A" || event.target.tagName === "IFRAME") return;
-            toggleSelection(videoItem, checkbox, video.url);
-        });
-
-        if (selectedVideos.has(video.url)) {
-            videoItem.classList.add("selected");
-        }
-
-        videoItem.appendChild(colCheckbox);
-        videoItem.appendChild(colTitle);
-        videoItem.appendChild(colVideo);
-        list.appendChild(videoItem);
-    });
-
-    saveSelections();
-}
-
-
-            videos.forEach(video => {
-                let videoItem = document.createElement("div");
-                videoItem.classList.add("row", "align-items-center", "mb-3", "video-item");
-
-                let colCheckbox = document.createElement("div");
-                colCheckbox.classList.add("col-1");
-
-                let checkbox = document.createElement("input");
-                checkbox.type = "checkbox";
-                checkbox.value = video.url;
-                checkbox.classList.add("form-check-input", "video-checkbox");
-                checkbox.checked = selectedVideos.has(video.url);
-                colCheckbox.appendChild(checkbox);
-
-                let colTitle = document.createElement("div");
-                colTitle.classList.add("col-6", "video-title");
-                let link = document.createElement("a");
-                link.href = video.url;
-                link.target = "_blank";
-                link.textContent = video.title;
-                colTitle.appendChild(link);
-
-                let colVideo = document.createElement("div");
-                colVideo.classList.add("col-5", "iframe-container");
-                let iframe = document.createElement("iframe");
-                iframe.width = "100%";
-                iframe.height = "281";
-                iframe.src = `https://www.youtube.com/embed/${new URL(video.url).searchParams.get("v")}`;
-                iframe.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture";
-                iframe.allowFullscreen = true;
-                colVideo.appendChild(iframe);
-
-                videoItem.addEventListener("click", (event) => {
-                    if (event.target.tagName === "A" || event.target.tagName === "IFRAME") return;
-                    toggleSelection(videoItem, checkbox, video.url);
-                });
-
-                if (selectedVideos.has(video.url)) {
-                    videoItem.classList.add("selected");
-                }
-
-                videoItem.appendChild(colCheckbox);
-                videoItem.appendChild(colTitle);
-                videoItem.appendChild(colVideo);
-                list.appendChild(videoItem);
-            });
-
-            saveSelections();
-        
-
-        async function downloadSelected() {
-            let selected = Array.from(selectedVideos);
-            if (selected.length === 0) {
-                alert("Please select at least one video.");
-                return;
-            }
-            let response = await fetch("/download", {
-                method: "POST",
-                body: JSON.stringify({urls: selected}),
-                headers: {"Content-Type": "application/json"}
-            });
-            if (!response.ok) {
-                alert("Error downloading files. Please try again.");
-                return;
-            }
-            let blob = await response.blob();
-            let link = document.createElement("a");
-            link.href = URL.createObjectURL(blob);
-            link.download = "downloads.zip";
-            link.click();
-        }
-
-        window.onload = loadSelections;
-        document.getElementById("fetchVideos").addEventListener("click", function() {
-    let progressBar = document.getElementById("fetchProgress");
-    let bar = document.getElementById("fetchBar");
-
-    // Show progress bar
-    progressBar.style.display = "block";
-    bar.style.width = "0%";
-
-    let interval = setInterval(() => {
-        let currentWidth = parseInt(bar.style.width);
-        if (currentWidth < 90) { // Simulate progress until API response
-            bar.style.width = (currentWidth + 10) + "%";
-        }
-    }, 500);
-
-    // Fetch related videos
-    fetch('/get_videos', { method: 'POST', body: new FormData(document.getElementById("videoForm")) })
-        .then(response => response.json())
-        .then(data => {
-            clearInterval(interval);
-            bar.style.width = "100%"; // Complete progress
-            setTimeout(() => { progressBar.style.display = "none"; }, 500);
-            displayVideos(data); // Function to display videos
-        })
-        .catch(error => {
-            clearInterval(interval);
-            progressBar.style.display = "none"; // Hide on error
-            alert("Error fetching videos!");
-        });
-});
-
-document.getElementById("downloadBtn").addEventListener("click", function() {
-    let selectedVideos = [...document.querySelectorAll(".video-checkbox:checked")].map(cb => cb.value);
-    if (selectedVideos.length === 0) {
-        alert("No videos selected!");
-        return;
-    }
-
-    let progressBar = document.getElementById("downloadProgress");
-    let bar = document.getElementById("downloadBar");
-
-    // Show progress bar
-    progressBar.style.display = "block";
-    bar.style.width = "0%";
-
-    let totalVideos = selectedVideos.length;
-    let completed = 0;
-
-    selectedVideos.forEach((video, index) => {
-        fetch(`/download_video?url=${encodeURIComponent(video)}`)
-            .then(response => response.json())
-            .then(() => {
-                completed++;
-                bar.style.width = `${(completed / totalVideos) * 100}%`;
-                if (completed === totalVideos) {
-                    setTimeout(() => { progressBar.style.display = "none"; }, 500);
-                }
-            })
-            .catch(() => {
-                alert("Error downloading " + video);
-            });
-    });
-});
-    </script>
 </head>
-
-<body class="container py-5">
-    <h1 class="mb-4 text-center">YouTube MP3 Downloader</h1>
-
-    <div id="video_title_box"></div>
-
-    <div class="d-flex mb-3">
-        <input type="text" id="video_id" class="form-control me-2" placeholder="Enter YouTube Video URL">
-        <button onclick="fetchVideos()" class="btn btn-primary me-2">Get Related Videos</button>
-        <button onclick="downloadSelected()" class="btn btn-success" id="fetchVideos">Download Selected</button>
+<body>
+    <div class="container">
+        <h1>WebM Music Player</h1>
+        <input type="text" id="youtube-link" placeholder="Enter YouTube URL">
+        <button onclick="fetchVideos()">Get Related Videos</button>
+        <button onclick="refreshTracks()">Refresh Tracks</button>
+        <button onclick="clearTracks()">Clear Folder</button>
+        
+        <div id="playlist" class="playlist"></div>
     </div>
-    <div id="fetchProgress" style="width: 100%; background: #ccc; height: 5px; display: none;">
-        <div id="fetchBar" style="width: 0%; height: 5px; background: #4caf50;"></div>
+    
+    <div class="controls">
+        <input type="range" class="seek-bar" min="0" max="100" value="0">
+        <p class="timestamp1">
+        <div class="control-buttons">
+            <button id="prev">&#9665;</button>
+            <button id="play-pause">&#9658;</button>
+            <button id="next">&#9655;</button>
+        </div>
+        <input type="range" class="volume-bar" min="0" max="1" step="0.01" value="1">
     </div>
-    <div id="video_list" class="list-group mt-3"></div>
+    
+    <script>
+        const audioPlayer = new Audio();
+        const playPauseBtn = document.getElementById("play-pause");
+        const prevBtn = document.getElementById("prev");
+        const nextBtn = document.getElementById("next");
+        const playlistContainer = document.getElementById("playlist");
+        const seekBar = document.querySelector(".seek-bar");
+        const timestamp = document.querySelector(".timestamp1")
+        const volumeBar = document.querySelector(".volume-bar");
+
+        let audioFiles = [];
+        let currentIndex = 0;
+
+        function fetchVideos() {
+            const link = document.getElementById("youtube-link").value;
+            fetch('/get_videosp', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                body: new URLSearchParams({video_id: link})
+            })
+            .then(() => refreshTracks())
+            .catch(error => console.error("Error fetching videos:", error));
+        }
+        function clearTracks() {
+  fetch('/cleartrackp', {
+    method: 'POST'
+  })
+  .catch(error => console.error("Error fetching videos:", error));
+}
+
+        function refreshTracks() {
+            fetch('/list_audiop')
+                .then(response => response.json())
+                .then(files => {
+                    audioFiles = files;
+                    updatePlaylist();
+                })
+                .catch(error => console.error('Error loading audio files:', error));
+        }
+
+        function updatePlaylist() {
+            playlistContainer.innerHTML = "";
+            audioFiles.forEach((file, index) => {
+                const item = document.createElement("div");
+                item.className = "playlist-item";
+                item.textContent = file;
+                item.onclick = () => loadTrack(index);
+                playlistContainer.appendChild(item);
+            });
+        }
+
+        function togglePlayPause() {
+            if (audioPlayer.paused) {
+                audioPlayer.play();
+                playPauseBtn.innerHTML = "&#10074;&#10074;";
+            } else {
+                audioPlayer.pause();
+                playPauseBtn.innerHTML = "&#9658;";
+            }
+        }
+
+        function loadTrack(index) {
+  if (audioFiles.length === 0) return;
+  currentIndex = index;
+  let filename = audioFiles[currentIndex];
+  audioPlayer.src = `/stream_audio/${filename}`;
+  audioPlayer.load();
+  audioPlayer.play();
+  playPauseBtn.innerHTML = "&#10074;&#10074;";
+
+  // Remove the current-song class from all list items
+  const playlistItems = document.querySelectorAll('.playlist-item');
+  playlistItems.forEach(item => item.classList.remove('current-song'));
+
+  // Add the current-song class to the current list item
+  const currentSongItem = playlistItems[index];
+  currentSongItem.classList.add('current-song');
+}
+
+
+        audioPlayer.addEventListener("ended", () => {
+            loadTrack((currentIndex + 1) % audioFiles.length);
+        });
+
+        audioPlayer.addEventListener("timeupdate", () => {
+            seekBar.value = (audioPlayer.currentTime / audioPlayer.duration) * 100 || 0;
+            const time = new Date(audioPlayer.currentTime * 1000);
+            timestamp.innerHTML = `${time.getMinutes().toString().padStart(2, '0')}:${time.getSeconds().toString().padStart(2, '0')}`;
+        });
+
+        seekBar.addEventListener("input", () => {
+            audioPlayer.currentTime = (seekBar.value / 100) * audioPlayer.duration;
+
+        });
+
+        volumeBar.addEventListener("input", () => {
+            audioPlayer.volume = volumeBar.value;
+        });
+
+        playPauseBtn.addEventListener("click", togglePlayPause);
+        nextBtn.addEventListener("click", () => loadTrack((currentIndex + 1) % audioFiles.length));
+        prevBtn.addEventListener("click", () => loadTrack((currentIndex - 1 + audioFiles.length) % audioFiles.length));
+    </script>
 </body>
-
 </html>
