@@ -37,14 +37,42 @@ def get_related_videos(video_id, max_results=5):
         res = conn.getresponse()
         if res.status != 200:
             return []
+        
         data = json.loads(res.read().decode("utf-8"))
-        return [{"title": item["snippet"]["title"], "url": f"https://www.youtube.com/watch?v={item['id']['videoId']}", "id": item['id']['videoId']} for item in data.get("items", [])]
+        valid_videos = []
+        
+        for item in data.get("items", []):
+            video_id = item["id"]["videoId"]
+            title = item["snippet"]["title"]
+            
+            # Check if the video works on music.youtube.com
+            if check_music_youtube_link(video_id):
+                valid_videos.append({
+                    "title": title,
+                    "url": f"https://music.youtube.com/watch?v={video_id}",
+                    "id": video_id
+                })
+            else:
+                print(f"Skipping {video_id} - Not available on music.youtube.com")
+        
+        return valid_videos
     except Exception as e:
         print(f"Error fetching related videos: {e}")
         return []
 
+def check_music_youtube_link(video_id):
+    """Checks if the given video_id is accessible on music.youtube.com."""
+    try:
+        conn = http.client.HTTPSConnection("music.youtube.com")
+        conn.request("HEAD", f"/watch?v={video_id}")  # HEAD request (faster than GET)
+        res = conn.getresponse()
+        return res.status == 200  # Valid link if status is 200
+    except Exception as e:
+        print(f"Error checking {video_id}: {e}")
+        return False  # If there's an error, consider the link invalid
 def sanitize_filename(title):
-    return re.sub(r'[\\/*?:"<>|]', "", title)
+    return re.sub(r'[^a-zA-Z\s]', "", title).strip()
+
 
 def download_mp3(youtube_url, video_title):
     try:
@@ -54,8 +82,6 @@ def download_mp3(youtube_url, video_title):
             "outtmpl": os.path.join(MP3_FOLDER, f"{safe_title}.%(ext)s"),
             "noplaylist": True,
             "quiet": True,
-            "username": "lungimeinkela@gmail.com",
-            "password": "lungimeinpungi",
             "postprocessors": [{
                 "key": "FFmpegExtractAudio",
                 "preferredcodec": "mp3",
@@ -154,4 +180,4 @@ def start_download():
     return send_file(ZIP_FILE, as_attachment=True)
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run()
