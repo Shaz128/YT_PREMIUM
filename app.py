@@ -54,6 +54,8 @@ def download_mp3(youtube_url, video_title):
             "outtmpl": os.path.join(MP3_FOLDER, f"{safe_title}.%(ext)s"),
             "noplaylist": True,
             "quiet": True,
+            "username": "lungimeinkela@gmail.com",
+            "password": "lungimeinpungi",
             "postprocessors": [{
                 "key": "FFmpegExtractAudio",
                 "preferredcodec": "mp3",
